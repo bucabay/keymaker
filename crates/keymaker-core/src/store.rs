@@ -61,26 +61,38 @@ pub trait SecretStore: fmt::Debug {
         }
     }
     /// None on platforms without this per-item biometric policy.
-    fn biometric_names(&self) -> Result<Option<Vec<String>>> { Ok(None) }
-    fn names_are_complete(&self) -> bool { false }
+    fn biometric_names(&self) -> Result<Option<Vec<String>>> {
+        Ok(None)
+    }
+    fn names_are_complete(&self) -> bool {
+        false
+    }
     fn enable_biometrics(&mut self, _key: &str) -> Result<()> {
-        Err(Error::Constraint("Biometric item protection is available on macOS".into()))
+        Err(Error::Constraint(
+            "Biometric item protection is available on macOS".into(),
+        ))
     }
     fn set(&mut self, key: &str, value: Secret) -> Result<()>;
     fn delete(&mut self, key: &str) -> Result<()>;
     /// Names only. This is the one listing an agent may see.
     fn names(&self) -> Result<Vec<String>>;
     /// Whether a vault key exists, so protected values can be unlocked together.
-    fn vault_ready(&self) -> std::result::Result<bool, String> { Ok(false) }
+    fn vault_ready(&self) -> std::result::Result<bool, String> {
+        Ok(false)
+    }
     /// One authorization opens every protected value. `None` before a vault
     /// key exists; an error where the vault flow is unavailable.
     fn unlock_vault(&mut self) -> Result<Option<UnlockedVault>> {
-        Err(Error::Constraint("vault unlock is not available on this platform".into()))
+        Err(Error::Constraint(
+            "vault unlock is not available on this platform".into(),
+        ))
     }
     /// Read a protected value through an open vault, without prompting.
     fn get_unlocked(&self, key: &str, vault: &UnlockedVault) -> Result<Secret> {
         let _ = (key, vault);
-        Err(Error::Constraint("vault unlock is not available on this platform".into()))
+        Err(Error::Constraint(
+            "vault unlock is not available on this platform".into(),
+        ))
     }
 }
 
@@ -104,7 +116,9 @@ impl MemoryStore {
 }
 
 impl SecretStore for MemoryStore {
-    fn names_are_complete(&self) -> bool { true }
+    fn names_are_complete(&self) -> bool {
+        true
+    }
     fn contains(&self, key: &str) -> Result<bool> {
         Ok(self.items.contains_key(key))
     }
@@ -154,9 +168,14 @@ impl KeychainStore {
             .output()
             .map_err(|e| Error::Os(format!("running security: {}", e)))?;
         if !out.status.success() {
-            return Err(Error::Store("Cannot enumerate keychain item attributes".into()));
+            return Err(Error::Store(
+                "Cannot enumerate keychain item attributes".into(),
+            ));
         }
-        Ok(parse_dump(&String::from_utf8_lossy(&out.stdout), &self.service))
+        Ok(parse_dump(
+            &String::from_utf8_lossy(&out.stdout),
+            &self.service,
+        ))
     }
 
     fn delete_legacy(&self, key: &str) -> Result<()> {
@@ -167,21 +186,32 @@ impl KeychainStore {
         if out.status.success() {
             Ok(())
         } else {
-            Err(Error::Store("Could not remove the legacy keychain item".into()))
+            Err(Error::Store(
+                "Could not remove the legacy keychain item".into(),
+            ))
         }
     }
 
     // One standard-keychain read; also used during an explicit biometric upgrade.
     fn legacy_get(&self, key: &str) -> Result<Secret> {
         let out = std::process::Command::new("security")
-            .args(["find-generic-password", "-a", key, "-s", &self.service, "-w"])
+            .args([
+                "find-generic-password",
+                "-a",
+                key,
+                "-s",
+                &self.service,
+                "-w",
+            ])
             .output()
             .map_err(|e| Error::Os(format!("running security: {}", e)))?;
         if !out.status.success() {
             return if out.status.code() == Some(44) {
                 Err(Error::NotFound(format!("secret `{}`", key)))
             } else {
-                Err(Error::Store("Keychain access was cancelled or denied".into()))
+                Err(Error::Store(
+                    "Keychain access was cancelled or denied".into(),
+                ))
             };
         }
         let value = String::from_utf8(out.stdout)
@@ -208,7 +238,9 @@ impl SecretStore for KeychainStore {
         Ok(Some(protected))
     }
 
-    fn names_are_complete(&self) -> bool { true }
+    fn names_are_complete(&self) -> bool {
+        true
+    }
 
     fn enable_biometrics(&mut self, key: &str) -> Result<()> {
         seal_keychain::ensure_available().map_err(Error::Store)?;
@@ -235,7 +267,9 @@ impl SecretStore for KeychainStore {
 
     fn get(&self, key: &str) -> Result<Secret> {
         if seal_keychain::contains(&self.service, key).map_err(Error::Store)? {
-            return seal_keychain::get(&self.service, key).map(Secret::new).map_err(Error::Store);
+            return seal_keychain::get(&self.service, key)
+                .map(Secret::new)
+                .map_err(Error::Store);
         }
         self.legacy_get(key)
     }
@@ -262,12 +296,26 @@ impl SecretStore for KeychainStore {
             }
         }
         let out = std::process::Command::new("security")
-            .args(["add-generic-password", "-a", key, "-s", &self.service,
-                "-w", value.expose(), "-T", "", "-U"])
+            .args([
+                "add-generic-password",
+                "-a",
+                key,
+                "-s",
+                &self.service,
+                "-w",
+                value.expose(),
+                "-T",
+                "",
+                "-U",
+            ])
             .output()
             .map_err(|e| Error::Os(format!("running security: {}", e)))?;
-        if out.status.success() { Ok(()) } else {
-            Err(Error::Store("Keychain save failed or authorization was denied".into()))
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(Error::Store(
+                "Keychain save failed or authorization was denied".into(),
+            ))
         }
     }
 
@@ -501,7 +549,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(target_os = "macos", ignore = "requires interactive OS-keychain approval")]
+    #[cfg_attr(
+        target_os = "macos",
+        ignore = "requires interactive OS-keychain approval"
+    )]
     fn the_platform_store_round_trips_a_value() {
         // Exercises whichever backend this platform actually uses, so the
         // cfg-gated code is not merely compiled but run.

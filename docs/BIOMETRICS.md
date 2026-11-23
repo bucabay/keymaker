@@ -35,8 +35,10 @@ falls back to the standard keychain — every other failure is surfaced, so no
 other condition silently downgrades where a value rests.
 
 Until a provisioned build exists, biometric protection stays deactivated in
-practice: the store writes standard keychain items, the GUI shows no biometric
-badges for them, and the unlock button reports that there is no vault yet.
+practice: the store writes standard keychain items, so no item carries a
+protected badge, and the unlock button reports that there is no vault yet.
+Enabling protection on an item surfaces the missing-entitlement error rather
+than silently downgrading.
 
 ## Activation
 
@@ -60,7 +62,12 @@ badges for them, and the unlock button reports that there is no vault yet.
 - The vault key is never shown and never written anywhere but the keychain.
   If its item is deleted, protected values can no longer be unlocked
   together; each still reads through its own USER_PRESENCE prompt.
-- Items protected under earlier builds (USER_PRESENCE-only access controls)
-  keep prompting per read until they are saved again under the new policy.
+- Items written under an earlier access control (USER_PRESENCE only) keep
+  prompting per read: saving a value does not replace an existing item's ACL.
+  Remove the item and store it again to give it the current policy.
+- Protection is per reference, and a protected reference prompts on every
+  unattended read. A task or endpoint bound to it no longer runs without a
+  person, which is the opposite of what the broker exists to do. The GUI shows
+  what uses a reference; do not protect one an agent needs to use alone.
 - The jail is unaffected: biometrics protect values at rest from other
   processes; the agent jail stops the agent reaching the store at all.

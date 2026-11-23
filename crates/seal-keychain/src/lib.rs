@@ -135,7 +135,10 @@ pub fn available() -> Result<bool, String> {
 /// unprovisioned build). Callers fall back to the standard keychain on this
 /// and only this, so no other failure silently downgrades where a value rests.
 pub fn is_missing_entitlement(message: &str) -> bool {
-    message == error(security_framework::base::Error::from_code(MISSING_ENTITLEMENT))
+    message
+        == error(security_framework::base::Error::from_code(
+            MISSING_ENTITLEMENT,
+        ))
 }
 
 /// Whether the vault key for `service` exists.
@@ -179,8 +182,7 @@ pub fn unlock(service: &str) -> Result<Vec<u8>, String> {
 /// the key itself is the only state that ever needs sharing.
 pub fn get_with_key(service: &str, account: &str, key: &[u8]) -> Result<String, String> {
     let context: Retained<AnyObject> = unsafe {
-        let class =
-            AnyClass::get(c"LAContext").ok_or("LAContext is unavailable on this system")?;
+        let class = AnyClass::get(c"LAContext").ok_or("LAContext is unavailable on this system")?;
         msg_send![class, new]
     };
     let credential = NSData::with_bytes(key);
@@ -214,7 +216,12 @@ pub fn get_with_key(service: &str, account: &str, key: &[u8]) -> Result<String, 
             .iter()
             .copied()
             .zip(values.iter().copied())
-            .map(|(k, v)| (CFType::wrap_under_get_rule(k), CFType::wrap_under_get_rule(v)))
+            .map(|(k, v)| {
+                (
+                    CFType::wrap_under_get_rule(k),
+                    CFType::wrap_under_get_rule(v),
+                )
+            })
             .collect();
         let query = CFDictionary::from_CFType_pairs(&pairs);
         let mut result: CFTypeRef = std::ptr::null();
@@ -246,7 +253,8 @@ pub fn set(service: &str, account: &str, value: &str) -> Result<(), String> {
         // APPLICATION_PASSWORD lets one unlock() authorize every read.
         let access = SecAccessControl::create_with_protection(
             Some(ProtectionMode::AccessibleWhenUnlockedThisDeviceOnly),
-            AccessControlOptions::USER_PRESENCE.bits() | AccessControlOptions::APPLICATION_PASSWORD.bits(),
+            AccessControlOptions::USER_PRESENCE.bits()
+                | AccessControlOptions::APPLICATION_PASSWORD.bits(),
         )
         .map_err(error)?;
         options.set_access_control(access);
@@ -279,7 +287,9 @@ mod tests {
             MISSING_ENTITLEMENT,
         ));
         assert!(is_missing_entitlement(&message));
-        assert!(!is_missing_entitlement("Keychain authorization was cancelled or denied"));
+        assert!(!is_missing_entitlement(
+            "Keychain authorization was cancelled or denied"
+        ));
     }
 
     #[test]

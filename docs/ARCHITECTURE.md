@@ -1,12 +1,16 @@
 # Architecture
 
-keymaker is one library (`keymaker-core`) with thin callers. The CLI is a
-caller. The GUI will be a caller. Nothing important lives in either.
+keymaker is one library (`keymaker-core`) with thin callers. The CLI and the
+GUI are callers, and nothing important lives in either. `seal-keychain` holds
+the macOS primitives one mechanism needs — access controls, the vault key, one
+item read — and makes no product decision of its own.
 
 ```
 crates/
   keymaker-core/     every decision, every test
   keymaker-cli/      argument parsing and printing, nothing else
+  keymaker-gui/      Tauri command wrappers, nothing else
+  seal-keychain/     macOS Data Protection Keychain primitives
 ```
 
 ## The three mechanisms
@@ -93,7 +97,13 @@ entirely.
 - **`store.rs`** — `Secret` has no `Display` and a `Debug` that prints
   `Secret([redacted; N bytes])`, so a value cannot reach a log or an error by
   accident. The only way out is `expose()`, which is greppable. Backends:
-  in-memory, macOS Keychain.
+  in-memory, macOS Keychain. On macOS a second, opt-in tier is the Data
+  Protection Keychain: an item there takes a USER_PRESENCE access control, and
+  a per-service vault key stored under the same control means one
+  authorization opens every protected value for the rest of the GUI session.
+  Presence checks stay metadata-only; the flow is unverified on device, and
+  unsigned builds fall back to the standard keychain on the
+  missing-entitlement error alone ([BIOMETRICS.md](BIOMETRICS.md)).
 - **`manifest.rs`** — the committed `.keymaker`. Names only. Holds tasks,
   environments with inheritance, and the trust-on-first-use approval flow that
   promotes an ad-hoc command into a named task.
@@ -124,3 +134,9 @@ enough to be true.
   itself hostile.
 - **Only the HTTP path keeps a static key out of the child entirely.** Anything
   that falls back to a named task is relying on mechanisms 1 and 3.
+- **An open vault is a session credential.** While the GUI holds it, that one
+  process can read every protected value without another prompt, and only
+  closing the app relocks it. Biometrics narrow *when* a person is asked; they
+  do not narrow what one answer covers. And protecting a reference that a task
+  or endpoint uses makes that unattended path prompt — or fail — per read, so
+  the two mechanisms answer different callers and can contradict each other.
