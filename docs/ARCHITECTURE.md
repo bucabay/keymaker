@@ -101,8 +101,9 @@ entirely.
   Protection Keychain: an item there takes a USER_PRESENCE access control, and
   a per-service vault key stored under the same control means one
   authorization opens every protected value for the rest of the GUI session.
-  Presence checks stay metadata-only; the flow is unverified on device, and
-  unsigned builds fall back to the standard keychain on the
+  Presence checks read attributes only — the one capability probe writes and
+  removes a throwaway item, once per process. The flow is unverified on
+  device, and unsigned builds fall back to the standard keychain on the
   missing-entitlement error alone ([BIOMETRICS.md](BIOMETRICS.md)).
 - **`manifest.rs`** — the committed `.keymaker`. Names only. Holds tasks,
   environments with inheritance, and the trust-on-first-use approval flow that

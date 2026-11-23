@@ -66,6 +66,17 @@ pub struct Health {
     pub missing_refs: Vec<String>,
 }
 
+/// Whether biometric protection can work here, and whether the vault exists.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BiometricStatus {
+    /// True when this process can use the Data Protection Keychain.
+    pub available: bool,
+    /// Why not, when it cannot.
+    pub reason: Option<String>,
+    /// Whether a vault key exists, so protected values unlock together.
+    pub vault_ready: bool,
+}
+
 /// Everything the GUI can do, with no Tauri types in sight so it is testable.
 pub struct Gui<'a> {
     pub store: &'a mut dyn SecretStore,
@@ -147,6 +158,28 @@ impl<'a> Gui<'a> {
     /// Whether a vault key exists, so protected values can be unlocked.
     pub fn vault_ready(&self) -> std::result::Result<bool, String> {
         self.store.vault_ready()
+    }
+
+    /// What the settings surface may say about biometric protection. A
+    /// capability query only: it never reads a value or opens the vault.
+    pub fn biometrics(&self) -> BiometricStatus {
+        match self.store.biometric_unavailable() {
+            Ok(None) => BiometricStatus {
+                available: true,
+                reason: None,
+                vault_ready: self.store.vault_ready().unwrap_or(false),
+            },
+            Ok(Some(reason)) => BiometricStatus {
+                available: false,
+                reason: Some(reason),
+                vault_ready: false,
+            },
+            Err(reason) => BiometricStatus {
+                available: false,
+                reason: Some(reason),
+                vault_ready: false,
+            },
+        }
     }
 
     /// One authorization opens every protected value; reads through the
@@ -696,6 +729,21 @@ inject = { kind = "header", name = "Authorization", format = "Bearer {secret}" }
             cfg!(any(target_os = "macos", target_os = "linux"))
         );
         assert!(!h.enforcement.is_empty());
+    }
+
+    #[test]
+    fn biometrics_says_when_this_platform_cannot_protect_items() {
+        let (mut store, m, c) = parts();
+        let clock = FixedClock::new(0);
+        let gui = Gui::new(&mut store, m, c, Log::new(&clock));
+
+        let status = gui.biometrics();
+        assert!(!status.available, "MemoryStore has no protected keychain");
+        assert!(!status.vault_ready);
+        assert!(status
+            .reason
+            .expect("an unavailable capability must say why")
+            .contains("macOS"));
     }
 
     #[test]

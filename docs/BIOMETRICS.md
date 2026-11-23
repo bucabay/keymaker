@@ -40,6 +40,12 @@ protected badge, and the unlock button reports that there is no vault yet.
 Enabling protection on an item surfaces the missing-entitlement error rather
 than silently downgrading.
 
+Availability is decided by a probe, not by the build number: a throwaway item
+carrying an access control is written under a probe service and deleted again,
+because a search answers NOT_FOUND whether the keychain is empty or the
+process is unentitled. The answer cannot change while the app runs, so it is
+asked once.
+
 ## Activation
 
 1. A valid **macOS** provisioning profile authorizing the app identifier

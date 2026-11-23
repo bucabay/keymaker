@@ -216,6 +216,10 @@ ten command wrappers and nothing else.
       have to hit refresh
 - [x] A vault unlock: one authorization, then every reveal is silent until the
       app closes. Unsigned builds are refused with the provisioning message
+- [x] A Settings tab: theme (remembered), biometric availability and why it is
+      refused, the vault's state, how much the vault reaches, and the jail and
+      audit verdict. Unlocking lives here as well as in the header; protection
+      itself stays deliberate, per row
 
 ### The `devUrl` footgun, found by running it
 

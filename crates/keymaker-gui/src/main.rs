@@ -14,7 +14,9 @@ use keymaker_core::audit::Log;
 use keymaker_core::clock::SystemClock;
 use keymaker_core::approvals::Approvals;
 use keymaker_core::clock::Clock;
-use keymaker_core::gui::{ApprovalRow, AuditRow, EndpointRow, Gui, Health, RefRow, TaskRow};
+use keymaker_core::gui::{
+    ApprovalRow, AuditRow, BiometricStatus, EndpointRow, Gui, Health, RefRow, TaskRow,
+};
 use keymaker_core::id::OsEntropy;
 use keymaker_core::manifest::Manifest;
 use keymaker_core::provider::Catalog;
@@ -109,6 +111,13 @@ fn reveal(reference: String, state: tauri::State<VaultState>) -> Result<String, 
 #[tauri::command]
 fn vault_ready() -> Result<bool, String> {
     with_gui(|g| g.vault_ready().map_err(|e| e.to_string()))
+}
+
+/// Whether this build can protect items at all, and whether a vault exists.
+/// A capability query: nothing is read and nothing is unlocked here.
+#[tauri::command]
+fn biometric_status() -> Result<BiometricStatus, String> {
+    with_gui(|g| Ok(g.biometrics()))
 }
 
 /// One authorization opens every protected value. Returns whether a vault
@@ -223,6 +232,7 @@ fn main() {
             list_refs,
             reveal,
             vault_ready,
+            biometric_status,
             unlock_vault,
             enable_biometrics,
             save_secret,

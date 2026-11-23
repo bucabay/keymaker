@@ -64,6 +64,13 @@ pub trait SecretStore: fmt::Debug {
     fn biometric_names(&self) -> Result<Option<Vec<String>>> {
         Ok(None)
     }
+    /// `None` when this process can use per-item biometric protection; the
+    /// reason when it cannot. Asking is a metadata query, never a value read.
+    fn biometric_unavailable(&self) -> std::result::Result<Option<String>, String> {
+        Ok(Some(
+            "per-item biometric protection is available on macOS".into(),
+        ))
+    }
     fn names_are_complete(&self) -> bool {
         false
     }
@@ -230,12 +237,34 @@ impl Default for KeychainStore {
 #[cfg(target_os = "macos")]
 impl SecretStore for KeychainStore {
     fn biometric_names(&self) -> Result<Option<Vec<String>>> {
+        // A build that cannot use the protected keychain has no protected
+        // items to describe. Saying `Some([])` would put an "Enable Touch ID"
+        // control on every row that can only ever be refused; Settings says
+        // why the capability is missing instead.
+        if self
+            .biometric_unavailable()
+            .map_err(Error::Store)?
+            .is_some()
+        {
+            return Ok(None);
+        }
         let mut protected = seal_keychain::names(&self.service).map_err(Error::Store)?;
         // A failed migration may have left the old copy. Do not describe an
         // item as protected until that unprotected copy has been removed.
         let legacy = self.legacy_names()?;
         protected.retain(|name| !legacy.contains(name));
         Ok(Some(protected))
+    }
+
+    fn biometric_unavailable(&self) -> std::result::Result<Option<String>, String> {
+        if seal_keychain::available()? {
+            Ok(None)
+        } else {
+            Ok(Some(
+                "This build cannot use the Data Protection Keychain: it needs a signed, provisioned app bundle (docs/BIOMETRICS.md)"
+                    .into(),
+            ))
+        }
     }
 
     fn names_are_complete(&self) -> bool {

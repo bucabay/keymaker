@@ -41,8 +41,16 @@ export type RunResult = {
   leaked_files: string[];
 };
 
+/** What Settings may say about per-item protection. Never a value. */
+export type BiometricStatus = {
+  available: boolean;
+  reason: string | null;
+  vault_ready: boolean;
+};
+
 export const api = {
   refs: () => invoke<RefRow[]>("list_refs"),
+  biometrics: () => invoke<BiometricStatus>("biometric_status"),
   /**
    * The one call in the whole product that returns a secret value.
    * It exists because a person sometimes has to check which key they stored,

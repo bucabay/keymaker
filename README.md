@@ -174,7 +174,7 @@ Limits are stated in full in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## Status
 
 Early. See [docs/PLAN.md](docs/PLAN.md) for exactly what is built and what is
-not. 368 tests, `cargo test --workspace`.
+not. 369 tests, `cargo test --workspace`.
 
 ## Documentation
 

@@ -19,11 +19,13 @@ import {
   Plus,
   ChevronRight,
   ChevronDown,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import {
   api,
   type ApprovalRow,
   type AuditRow,
+  type BiometricStatus,
   type EndpointRow,
   type Health,
   type RefRow,
@@ -35,8 +37,9 @@ import { SecretRow, type RowStatus } from "@/components/secret-row";
 import { useAutosave } from "@/hooks/use-autosave";
 import { AddSecret } from "@/components/add-secret";
 import { DEFAULT_ISSUER, grouped, isExpanded, loadCollapsed, saveCollapsed } from "@/lib/group";
+import { loadTheme, saveTheme } from "@/lib/theme";
 
-type Tab = "secrets" | "approvals" | "tasks" | "endpoints" | "audit";
+type Tab = "secrets" | "approvals" | "tasks" | "endpoints" | "audit" | "settings";
 
 const TABS: { id: Tab; label: string; icon: typeof KeyRound }[] = [
   { id: "secrets", label: "Secrets", icon: KeyRound },
@@ -44,6 +47,7 @@ const TABS: { id: Tab; label: string; icon: typeof KeyRound }[] = [
   { id: "tasks", label: "Tasks", icon: Play },
   { id: "endpoints", label: "Endpoints", icon: Globe },
   { id: "audit", label: "Audit", icon: ScrollText },
+  { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
@@ -82,9 +86,69 @@ function Empty({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** A one-word state in a settings row. Colour carries the verdict. */
+function State({
+  tone,
+  children,
+}: {
+  tone: "primary" | "muted" | "destructive";
+  children: React.ReactNode;
+}) {
+  const tones = {
+    primary: "text-primary",
+    muted: "text-muted-foreground",
+    destructive: "text-destructive",
+  } as const;
+  return (
+    <span
+      className={cn(
+        "shrink-0 font-mono text-[10px] uppercase tracking-wider",
+        tones[tone],
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/**
+ * The vault line in Settings. One place for the wording, because the same
+ * state drives the header lock, the row controls and this panel.
+ */
+function vaultCopy(
+  status: BiometricStatus | null,
+  open: boolean,
+): { label: string; note: string } {
+  if (status === null) {
+    return { label: "checking", note: "Checking this build…" };
+  }
+  if (!status.available) {
+    return {
+      label: "not available",
+      note: "No vault in this build: protected items cannot be written here.",
+    };
+  }
+  if (open) {
+    return {
+      label: "unlocked",
+      note: "Unlocked for this session: protected values read silently until the app closes.",
+    };
+  }
+  if (status.vault_ready) {
+    return {
+      label: "ready",
+      note: "One Touch ID authorization opens every protected value for the rest of the session.",
+    };
+  }
+  return {
+    label: "not set up",
+    note: "Nothing is protected yet. Use the fingerprint control on a row to add one.",
+  };
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>("secrets");
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(() => loadTheme() === "dark");
   const [refs, setRefs] = useState<RefRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [endpoints, setEndpoints] = useState<EndpointRow[]>([]);
@@ -93,6 +157,7 @@ export default function App() {
   const [envs, setEnvs] = useState<string[]>([]);
   const [env, setEnv] = useState("default");
   const [health, setHealth] = useState<Health | null>(null);
+  const [biometrics, setBiometrics] = useState<BiometricStatus | null>(null);
   const [running, setRunning] = useState<string | null>(null);
   /** Revealed values, by reference. Membership is what "revealed" means. */
   const [revealed, setRevealed] = useState<Record<string, string>>({});
@@ -191,7 +256,26 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
+    saveTheme(dark ? "dark" : "light");
   }, [dark]);
+
+  // Settings asks the capability question when it is opened, so no other tab
+  // pays for a keychain query it never shows. Nothing here reads a value.
+  useEffect(() => {
+    if (tab !== "settings") return;
+    let live = true;
+    api
+      .biometrics()
+      .then((status) => {
+        if (live) setBiometrics(status);
+      })
+      .catch((err) => {
+        if (live) setError(String(err));
+      });
+    return () => {
+      live = false;
+    };
+  }, [tab]);
 
   // A pending edit must not be lost to a window switch, a tab change, or the
   // app closing. Each of these is a moment the user considers the edit done.
@@ -356,6 +440,17 @@ export default function App() {
 
   // Groups are derived from the names, so there is nothing to keep in step.
   const groups = grouped(refs, query, entryOrder);
+  /** What the vault can open, over what is on this machine. */
+  const protectedCount = refs.filter((row) => row.biometric === true).length;
+  const storedCount = refs.filter((row) => row.present).length;
+  /** The same state drives the header lock, the row controls and Settings. */
+  const vault = vaultCopy(biometrics, vaultOpen);
+  const biometricNote =
+    biometrics === null
+      ? "Checking this build…"
+      : biometrics.available
+        ? "This build can write to the Data Protection Keychain."
+        : biometrics.reason ?? "This build cannot use the Data Protection Keychain.";
 
   function toggleGroup(issuer: string) {
     setCollapsed((current) => {
@@ -833,6 +928,133 @@ export default function App() {
               })
             )}
           </Panel>
+        )}
+
+        {tab === "settings" && (
+          <>
+            <Panel title="Appearance" note="this window">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-sm">Theme</div>
+                  <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                    Remembered on this machine.
+                  </div>
+                </div>
+                <div className="flex shrink-0 border border-line">
+                  {(["light", "dark"] as const).map((choice) => (
+                    <button
+                      key={choice}
+                      onClick={() => setDark(choice === "dark")}
+                      aria-pressed={(choice === "dark") === dark}
+                      className={cn(
+                        "px-3 py-1 font-mono text-[11px] uppercase tracking-wider",
+                        (choice === "dark") === dark
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {choice}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </Panel>
+
+            <Panel title="Biometrics" note="macOS · per item">
+              <div className="flex items-start gap-3 border-b border-line px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-sm">Touch ID support</div>
+                  <div className="mt-0.5 font-mono text-[11px] leading-relaxed text-muted-foreground">
+                    {biometricNote}
+                  </div>
+                </div>
+                <State
+                  tone={biometrics?.available ? "primary" : "muted"}
+                >
+                  {biometrics === null
+                    ? "checking"
+                    : biometrics.available
+                      ? "available"
+                      : "unavailable"}
+                </State>
+              </div>
+
+              <div className="flex items-start gap-3 border-b border-line px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-sm">Vault</div>
+                  <div className="mt-0.5 font-mono text-[11px] leading-relaxed text-muted-foreground">
+                    {vault.note}
+                  </div>
+                </div>
+                <State
+                  tone={
+                    vaultOpen
+                      ? "primary"
+                      : biometrics?.vault_ready
+                        ? "primary"
+                        : "muted"
+                  }
+                >
+                  {vault.label}
+                </State>
+              </div>
+
+              <div className="flex items-start gap-3 border-b border-line px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-sm">Protected references</div>
+                  <div className="mt-0.5 font-mono text-[11px] leading-relaxed text-muted-foreground">
+                    Values the open vault reads without another prompt.
+                  </div>
+                </div>
+                <span className="shrink-0 font-mono text-[11px] text-foreground">
+                  {protectedCount} of {storedCount}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 px-4 py-3">
+                <p className="min-w-0 flex-1 font-mono text-[11px] leading-relaxed text-muted-foreground">
+                  Protection is per reference and deliberate. Protecting one a
+                  task or endpoint needs unattended makes that path prompt — or
+                  fail — on every read.
+                </p>
+                <button
+                  onClick={() => void unlock()}
+                  disabled={!biometrics?.available || !biometrics.vault_ready || vaultOpen}
+                  className="flex shrink-0 items-center gap-1.5 border border-line px-2.5 py-1 font-mono text-[11px] uppercase tracking-wider hover:border-primary hover:text-primary disabled:opacity-40"
+                >
+                  {vaultOpen ? <LockKeyholeOpen size={12} /> : <LockKeyhole size={12} />}
+                  {vaultOpen ? "unlocked" : "unlock"}
+                </button>
+              </div>
+            </Panel>
+
+            <Panel title="This machine" note="enforcement and evidence">
+              <div className="flex items-start gap-3 border-b border-line px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-sm">Agent jail</div>
+                  <div className="mt-0.5 font-mono text-[11px] leading-relaxed text-muted-foreground">
+                    {health?.enforcement ?? "unknown"}
+                  </div>
+                </div>
+                <State tone={health?.enforced ? "primary" : "destructive"}>
+                  {health?.enforced ? "enforced" : "not enforced"}
+                </State>
+              </div>
+              <div className="flex items-start gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-sm">Audit chain</div>
+                  <div className="mt-0.5 font-mono text-[11px] leading-relaxed text-muted-foreground">
+                    {health
+                      ? `${health.audit_entries} ${health.audit_entries === 1 ? "entry" : "entries"}`
+                      : "unknown"}
+                  </div>
+                </div>
+                <State tone={health?.audit_intact ? "primary" : "destructive"}>
+                  {health?.audit_intact ? "intact" : "broken"}
+                </State>
+              </div>
+            </Panel>
+          </>
         )}
       </main>
     </div>

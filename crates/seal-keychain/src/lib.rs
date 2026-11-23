@@ -38,6 +38,7 @@ use security_framework_sys::item::{
     kSecUseAuthenticationContext, kSecUseAuthenticationUI, kSecUseAuthenticationUISkip,
 };
 use security_framework_sys::keychain_item::SecItemCopyMatching;
+use std::sync::OnceLock;
 
 #[link(name = "LocalAuthentication", kind = "framework")]
 extern "C" {}
@@ -115,19 +116,40 @@ pub fn ensure_available() -> Result<(), String> {
     }
 }
 
+/// Whether this process may use the Data Protection Keychain.
+///
+/// A search cannot tell an unprovisioned build from an empty keychain: both
+/// answer NOT_FOUND. The first operation macOS refuses is a write carrying an
+/// access control, so probe with one and remove it. The answer cannot change
+/// during the life of the process, so it is asked once.
 pub fn available() -> Result<bool, String> {
-    match ItemSearchOptions::new()
-        .class(ItemClass::generic_password())
-        .service("seal-biometric-entitlement-check")
-        .ignore_legacy_keychains()
-        .load_attributes(true)
-        .search()
-    {
-        Ok(_) => Ok(true),
-        Err(e) if e.code() == NOT_FOUND => Ok(true),
-        Err(e) if e.code() == MISSING_ENTITLEMENT => Ok(false),
-        Err(e) => Err(error(e)),
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    if let Some(known) = AVAILABLE.get() {
+        return Ok(*known);
     }
+
+    let service = "seal-biometric-entitlement-check";
+    let account = "__probe__";
+    let access = SecAccessControl::create_with_protection(
+        Some(ProtectionMode::AccessibleWhenUnlockedThisDeviceOnly),
+        AccessControlOptions::USER_PRESENCE.bits(),
+    )
+    .map_err(error)?;
+    let mut options = PasswordOptions::new_generic_password(service, account);
+    options.use_protected_keychain();
+    options.set_access_control(access);
+    let available = match set_generic_password_options(b"probe", options) {
+        Ok(()) => {
+            let mut cleanup = PasswordOptions::new_generic_password(service, account);
+            cleanup.use_protected_keychain();
+            let _ = delete_generic_password_options(cleanup);
+            true
+        }
+        Err(e) if e.code() == MISSING_ENTITLEMENT => false,
+        Err(e) => return Err(error(e)),
+    };
+    let _ = AVAILABLE.set(available);
+    Ok(available)
 }
 
 /// Whether a returned error message is the missing-entitlement refusal: the
