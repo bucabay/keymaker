@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/keymaker-core", "crates/keymaker-cli"]
+members = ["crates/keymaker-core", "crates/keymaker-cli", "crates/seal-keychain"]
 # The GUI is excluded from the default build: it pulls in WebKit and needs the
 # frontend built first. Build it with `cargo build -p keymaker-gui` from
 # crates/keymaker-gui, or `pnpm tauri build`.
