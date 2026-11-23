@@ -1,5 +1,8 @@
 target/
 .keymaker
+# The committed demo manifest for the CLI recording (scripts/demo.tape) is the
+# one exception:
+!scripts/demo-env/.keymaker
 *.sbpl
 gui/dist/
 gui/node_modules/

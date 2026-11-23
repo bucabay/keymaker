@@ -1,0 +1,22 @@
+# Two definitions for the CLI recording: a read with nothing to gate, and a
+# write that stops for a person above a threshold.
+
+[[endpoint]]
+name = "stripe.charge_get"
+method = "GET"
+host = "api.stripe.com"
+path = "/v1/charges/{id}"
+secret = "stripe/sk_live"
+inject = { kind = "header", name = "Authorization", format = "Bearer {secret}" }
+
+[[endpoint]]
+name = "stripe.refund"
+method = "POST"
+host = "api.stripe.com"
+path = "/v1/refunds"
+secret = "stripe/sk_live"
+body_format = "form"
+inject = { kind = "header", name = "Authorization", format = "Bearer {secret}" }
+schema = { charge = "string", amount = "uint32?", reason = "string?" }
+# Anything over £1,000 stops for a person.
+policy = { step_up = "amount > 100000" }

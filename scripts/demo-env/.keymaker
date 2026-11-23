@@ -1,0 +1,12 @@
+version = 1
+
+# Committed demo manifest for the README CLI recording (scripts/demo.tape).
+# Names only, never values. `default` binds nothing, so running the demo task
+# never reads the store.
+
+[tasks]
+deploy = "./scripts/deploy.sh"
+
+[env.production]
+DATABASE_URL      = "hardroad/db_url"
+STRIPE_SECRET_KEY = { ref = "stripe/sk_live", approve = true }

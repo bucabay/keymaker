@@ -10,6 +10,9 @@ keymaker get stripe/sk_live
 The Keymaker does not hand over a master key. He cuts one key, for one door,
 used once. That is what this is: an agent asks for an *action*, not a value.
 
+![The Keymaker GUI: the reference list grouped by issuer, and the detail view
+that holds the one value-reading control in the product](docs/images/keymaker-gui.png)
+
 ## Why
 
 An AI agent that can read a secret will eventually print one — into a
@@ -35,6 +38,12 @@ cargo install --path crates/keymaker-cli      # from this repo
 ```
 
 ## Use
+
+![The Keymaker CLI: `get` refused by design, names listed, a one-off command
+approved once and remembered, and the audit chain verified](docs/images/keymaker-cli.gif)
+
+Regenerate the recording with `vhs scripts/demo.tape` (see the tape for the
+one-time `vhs` install).
 
 ```sh
 # Start the broker. It is the only process that holds a plaintext value.
@@ -159,7 +168,7 @@ Limits are stated in full in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## Status
 
 Early. See [docs/PLAN.md](docs/PLAN.md) for exactly what is built and what is
-not. 331 tests, `cargo test --workspace`.
+not. 368 tests, `cargo test --workspace`.
 
 ## License
 
