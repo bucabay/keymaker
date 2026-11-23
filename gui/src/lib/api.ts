@@ -50,6 +50,8 @@ export const api = {
    */
   reveal: (reference: string) => invoke<string>("reveal", { reference }),
   enableBiometrics: (reference: string) => invoke<void>("enable_biometrics", { reference }),
+  /** One authorization opens every protected value. False: no vault key yet. */
+  unlock: () => invoke<boolean>("unlock_vault"),
   save: (reference: string, value: string) =>
     invoke<void>("save_secret", { reference, value }),
   remove: (reference: string) => invoke<void>("delete_secret", { reference }),

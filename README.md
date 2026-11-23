@@ -76,7 +76,10 @@ keymaker audit --verify           # the trail, and proof it has not been edited
 keymaker doctor -e production     # which references are missing here
 ```
 
-There is no `get` and no `export`. To read a value yourself, use the GUI.
+There is no `get` and no `export`. To read a value yourself, use the GUI —
+where one Touch ID authorization can unlock every protected value for the
+rest of the session (macOS, signed builds; see
+[docs/BIOMETRICS.md](docs/BIOMETRICS.md)).
 
 ## Endpoint definitions
 
@@ -162,6 +165,9 @@ static fallback is never silently glossed.
   value in two halves all defeat it, and nothing fixes that.
 - Only short-lived credentials survive a hostile task, and they need the
   provider to mint them. A static API key has nothing to shorten.
+- Biometric protection is implemented but not verified on device — no
+  provisioning profile exists for this project
+  ([docs/BIOMETRICS.md](docs/BIOMETRICS.md)).
 
 Limits are stated in full in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -169,6 +175,12 @@ Limits are stated in full in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 Early. See [docs/PLAN.md](docs/PLAN.md) for exactly what is built and what is
 not. 368 tests, `cargo test --workspace`.
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md) — the three mechanisms, and how they compose
+- [Plan](docs/PLAN.md) — exactly what is built and what is not
+- [Biometrics](docs/BIOMETRICS.md) — the vault model, signing, and what is not yet verified
 
 ## License
 

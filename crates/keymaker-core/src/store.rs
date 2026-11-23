@@ -11,6 +11,19 @@ use std::fmt;
 #[derive(Clone, PartialEq, Eq)]
 pub struct Secret(String);
 
+/// A vault session: one authorization (Touch ID or password), then protected
+/// reads through it need no further prompts. Holds only the vault key — the
+/// authentication context is rebuilt per read, on the calling thread. macOS
+/// only; the type exists on every platform so the GUI can hold one in managed
+/// state.
+#[cfg(target_os = "macos")]
+pub struct UnlockedVault {
+    pub(crate) key: Vec<u8>,
+}
+
+#[cfg(not(target_os = "macos"))]
+pub struct UnlockedVault(());
+
 impl Secret {
     pub fn new(value: impl Into<String>) -> Self {
         Secret(value.into())
@@ -57,6 +70,18 @@ pub trait SecretStore: fmt::Debug {
     fn delete(&mut self, key: &str) -> Result<()>;
     /// Names only. This is the one listing an agent may see.
     fn names(&self) -> Result<Vec<String>>;
+    /// Whether a vault key exists, so protected values can be unlocked together.
+    fn vault_ready(&self) -> std::result::Result<bool, String> { Ok(false) }
+    /// One authorization opens every protected value. `None` before a vault
+    /// key exists; an error where the vault flow is unavailable.
+    fn unlock_vault(&mut self) -> Result<Option<UnlockedVault>> {
+        Err(Error::Constraint("vault unlock is not available on this platform".into()))
+    }
+    /// Read a protected value through an open vault, without prompting.
+    fn get_unlocked(&self, key: &str, vault: &UnlockedVault) -> Result<Secret> {
+        let _ = (key, vault);
+        Err(Error::Constraint("vault unlock is not available on this platform".into()))
+    }
 }
 
 #[derive(Debug, Default)]
@@ -187,6 +212,9 @@ impl SecretStore for KeychainStore {
 
     fn enable_biometrics(&mut self, key: &str) -> Result<()> {
         seal_keychain::ensure_available().map_err(Error::Store)?;
+        // A vault key must exist before anything is protected, or the item
+        // could never be unlocked together with the rest.
+        seal_keychain::setup_vault(&self.service).map_err(Error::Store)?;
         if !seal_keychain::contains(&self.service, key).map_err(Error::Store)? {
             let value = self.legacy_get(key)?;
             seal_keychain::set(&self.service, key, value.expose()).map_err(Error::Store)?;
@@ -221,9 +249,14 @@ impl SecretStore for KeychainStore {
             // provisioned build can write to it. An unsigned build is refused
             // with a missing-entitlement error, and the standard keychain is
             // the documented fallback — on that error alone, so no other
-            // failure silently downgrades where the value rests.
-            match seal_keychain::set(&self.service, key, value.expose()) {
-                Ok(()) => return Ok(()),
+            // failure silently downgrades where the value rests. The vault
+            // key is created first, so nothing is ever protected that one
+            // unlock() cannot open.
+            match seal_keychain::setup_vault(&self.service) {
+                Ok(()) => {
+                    return seal_keychain::set(&self.service, key, value.expose())
+                        .map_err(Error::Store);
+                }
                 Err(e) if seal_keychain::is_missing_entitlement(&e) => {}
                 Err(e) => return Err(Error::Store(e)),
             }
@@ -236,6 +269,28 @@ impl SecretStore for KeychainStore {
         if out.status.success() { Ok(()) } else {
             Err(Error::Store("Keychain save failed or authorization was denied".into()))
         }
+    }
+
+    fn vault_ready(&self) -> std::result::Result<bool, String> {
+        seal_keychain::vault_exists(&self.service)
+    }
+
+    fn unlock_vault(&mut self) -> Result<Option<UnlockedVault>> {
+        if !seal_keychain::vault_exists(&self.service).map_err(Error::Store)? {
+            return Ok(None);
+        }
+        Ok(Some(UnlockedVault {
+            key: seal_keychain::unlock(&self.service).map_err(Error::Store)?,
+        }))
+    }
+
+    fn get_unlocked(&self, key: &str, vault: &UnlockedVault) -> Result<Secret> {
+        if seal_keychain::contains(&self.service, key).map_err(Error::Store)? {
+            return seal_keychain::get_with_key(&self.service, key, &vault.key)
+                .map(Secret::new)
+                .map_err(Error::Store);
+        }
+        self.legacy_get(key)
     }
 
     fn delete(&mut self, key: &str) -> Result<()> {

@@ -5,4 +5,7 @@ edition = "2021"
 
 [dependencies]
 security-framework = { version = "3", features = ["OSX_10_15"] }
+security-framework-sys = "2"
 core-foundation = "0.10"
+objc2 = "0.6"
+objc2-foundation = "0.3"

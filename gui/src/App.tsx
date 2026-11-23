@@ -13,6 +13,8 @@ import {
   Moon,
   RefreshCw,
   Lock,
+  LockKeyhole,
+  LockKeyholeOpen,
   Search,
   Plus,
   ChevronRight,
@@ -94,6 +96,8 @@ export default function App() {
   const [running, setRunning] = useState<string | null>(null);
   /** Revealed values, by reference. Membership is what "revealed" means. */
   const [revealed, setRevealed] = useState<Record<string, string>>({});
+  /** Whether the vault is open: protected values read silently until close. */
+  const [vaultOpen, setVaultOpen] = useState(false);
   /** Edits not yet written. */
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState<string | null>(null);
@@ -238,6 +242,18 @@ export default function App() {
       setError(String(err));
     } finally {
       pendingProtection.current.delete(reference);
+    }
+  }
+
+  async function unlock() {
+    try {
+      const ready = await api.unlock();
+      setVaultOpen(ready);
+      if (!ready) {
+        setError("No protected items yet: enable biometrics on a reference first.");
+      }
+    } catch (err) {
+      setError(String(err));
     }
   }
 
@@ -394,6 +410,18 @@ export default function App() {
           </div>
         )}
 
+        <button
+          onClick={() => void unlock()}
+          className="p-1.5 text-muted-foreground hover:text-foreground"
+          aria-label={vaultOpen ? "Vault unlocked" : "Unlock protected values"}
+          title={
+            vaultOpen
+              ? "Vault unlocked: protected values read silently until the app closes"
+              : "Unlock protected values with one Touch ID authorization"
+          }
+        >
+          {vaultOpen ? <LockKeyholeOpen size={15} /> : <LockKeyhole size={15} />}
+        </button>
         <button
           onClick={() => void refresh()}
           className="p-1.5 text-muted-foreground hover:text-foreground"

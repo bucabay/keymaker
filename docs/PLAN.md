@@ -5,8 +5,8 @@ when it is covered by a passing test.
 
 Run the suite with `cargo test --workspace` and `cargo test` in
 `crates/keymaker-gui`. Currently **368 passing** (366 in the workspace, 2 in
-the GUI crate), plus two interactive-only tests that need a signed, provisioned
-build.
+the GUI crate), plus three interactive-only tests that need a signed,
+provisioned build.
 
 ## Phase 1 — Jail the agent
 
@@ -185,6 +185,13 @@ raw `security find-generic-password` walks around everything otherwise.
       *capability* in an endpoint definition, not per stored value. Revisit only
       if keymaker ever has to defend against a process that is outside the jail
       but still the same user
+- [x] **Revisited for macOS (November 2026).** Per-item protection arrived for
+      the GUI anyway, on the vault model: items take a
+      `USER_PRESENCE | APPLICATION_PASSWORD` access control, and a per-service
+      vault key means one Touch ID authorization unlocks every protected value
+      for the rest of the session. Not verified on device — it needs a signed,
+      provisioned build, which this project does not have (see
+      docs/BIOMETRICS.md). Unsigned builds keep the standard keychain.
 
 ## Phase 6 — GUI
 
@@ -207,6 +214,8 @@ ten command wrappers and nothing else.
 - [x] An Approvals tab, polled every two seconds with a count in the tab bar —
       an agent blocked on a decision is waiting on a person, so they should not
       have to hit refresh
+- [x] A vault unlock: one authorization, then every reveal is silent until the
+      app closes. Unsigned builds are refused with the provisioning message
 
 ### The `devUrl` footgun, found by running it
 

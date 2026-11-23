@@ -145,6 +145,32 @@ impl<'a> Gui<'a> {
         Ok(value.expose().to_string())
     }
 
+    /// Whether a vault key exists, so protected values can be unlocked.
+    pub fn vault_ready(&self) -> std::result::Result<bool, String> {
+        self.store.vault_ready()
+    }
+
+    /// One authorization opens every protected value; reads through the
+    /// returned handle are silent. `None` before a vault key exists.
+    pub fn unlock_vault(
+        &mut self,
+    ) -> std::result::Result<Option<crate::store::UnlockedVault>, String> {
+        self.store.unlock_vault().map_err(|e| e.to_string())
+    }
+
+    /// Read a protected value through an open vault, recorded like [`reveal`].
+    pub fn reveal_unlocked(
+        &mut self,
+        reference: &str,
+        vault: &crate::store::UnlockedVault,
+    ) -> Result<String> {
+        let value = self.store.get_unlocked(reference, vault)?;
+        self.audit.append(Event::Revealed {
+            reference: reference.to_string(),
+        });
+        Ok(value.expose().to_string())
+    }
+
     pub fn enable_biometrics(&mut self, reference: &str) -> Result<()> {
         self.store.enable_biometrics(reference)?;
         self.audit.append(Event::SecretProtectionEnabled { reference: reference.to_string() });

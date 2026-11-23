@@ -17,7 +17,7 @@ Set Padding 24
 Set Width 760
 Set Height 380
 Set Framerate 30
-Set TypingSpeed 40ms
+Set TypingSpeed 60ms
 Set CursorBlink true
 Set Theme { "Background": "#0d0d0d", "Foreground": "#ededed", "Cursor": "#3b82f6", "Selection": "#22355c", "Black": "#1e2430", "Red": "#f87171", "Green": "#4ade80", "Yellow": "#f38020", "Blue": "#60a5fa", "Purple": "#c084fc", "Cyan": "#22d3ee", "White": "#ededed", "BrightBlack": "#8a8a8a", "BrightRed": "#fca5a5", "BrightGreen": "#86efac", "BrightYellow": "#fdba74", "BrightBlue": "#93c5fd", "BrightPurple": "#d8b4fe", "BrightCyan": "#67e8f9", "BrightWhite": "#ffffff" }
 
@@ -32,22 +32,22 @@ Type "clear"
 Enter
 Show
 
-Sleep 800ms
+Sleep 1000ms
 Type "keymaker get stripe/sk_live"
 Enter
-Sleep 1000ms
+Sleep 2000ms
 
 Type "keymaker list -e production"
 Enter
-Sleep 1500ms
+Sleep 3000ms
 
 Type "keymaker run -- ./scripts/migrate.sh"
 Enter
-Sleep 1400ms
+Sleep 2600ms
 Type "y"
 Enter
-Sleep 1500ms
+Sleep 2800ms
 
 Type "keymaker audit --verify"
 Enter
-Sleep 2500ms
+Sleep 3500ms

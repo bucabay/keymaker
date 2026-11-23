@@ -19,9 +19,14 @@ use keymaker_core::id::OsEntropy;
 use keymaker_core::manifest::Manifest;
 use keymaker_core::provider::Catalog;
 use keymaker_core::runner::{ProcessSpawner, Runner};
-use keymaker_core::store::{platform_store, SecretStore};
+use keymaker_core::store::{platform_store, SecretStore, UnlockedVault};
 use serde::Serialize;
 use std::path::PathBuf;
+use std::sync::Mutex;
+
+/// The vault session, if one is open. Held for the life of the window so one
+/// authorization serves every reveal until the app closes.
+struct VaultState(Mutex<Option<UnlockedVault>>);
 
 /// `SystemClock` holds nothing, so one can live for the whole program and be
 /// borrowed by every audit log.
@@ -89,10 +94,38 @@ fn list_refs() -> Result<Vec<RefRow>, String> {
 /// The one place in the whole project that returns a value.
 ///
 /// It is reachable only from a window a person is looking at, and it is
-/// recorded in the same audit chain as everything else.
+/// recorded in the same audit chain as everything else. When the vault is
+/// open the read is silent; otherwise the item's own access control prompts.
 #[tauri::command]
-fn reveal(reference: String) -> Result<String, String> {
-    with_gui(|g| g.reveal(&reference).map_err(|e| e.to_string()))
+fn reveal(reference: String, state: tauri::State<VaultState>) -> Result<String, String> {
+    let slot = state.0.lock().map_err(|_| "vault state is busy".to_string())?;
+    with_gui(|g| match &*slot {
+        Some(vault) => g.reveal_unlocked(&reference, vault).map_err(|e| e.to_string()),
+        None => g.reveal(&reference).map_err(|e| e.to_string()),
+    })
+}
+
+/// Whether a vault key exists on this machine.
+#[tauri::command]
+fn vault_ready() -> Result<bool, String> {
+    with_gui(|g| g.vault_ready().map_err(|e| e.to_string()))
+}
+
+/// One authorization opens every protected value. Returns whether a vault
+/// was opened: false means there is no vault key yet, not that anything
+/// failed. Held until the app closes.
+#[tauri::command]
+fn unlock_vault(state: tauri::State<VaultState>) -> Result<bool, String> {
+    let mut slot = state.0.lock().map_err(|_| "vault state is busy".to_string())?;
+    if slot.is_some() {
+        return Ok(true);
+    }
+    with_gui(|g| {
+        let opened = g.unlock_vault().map_err(|e| e.to_string())?;
+        let ready = opened.is_some();
+        *slot = opened;
+        Ok(ready)
+    })
 }
 
 #[tauri::command]
@@ -185,9 +218,12 @@ fn run_task(task: String, env: String) -> Result<RunResult, String> {
 
 fn main() {
     tauri::Builder::default()
+        .manage(VaultState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             list_refs,
             reveal,
+            vault_ready,
+            unlock_vault,
             enable_biometrics,
             save_secret,
             delete_secret,
