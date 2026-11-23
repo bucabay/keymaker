@@ -3,7 +3,10 @@
 What is built, what is next, in the order it should happen. Tick a box only
 when it is covered by a passing test.
 
-Run the suite with `cargo test --workspace`. Currently **331 passing** (329 in the workspace, 2 in the GUI crate).
+Run the suite with `cargo test --workspace` and `cargo test` in
+`crates/keymaker-gui`. Currently **368 passing** (366 in the workspace, 2 in
+the GUI crate), plus two interactive-only tests that need a signed, provisioned
+build.
 
 ## Phase 1 — Jail the agent
 
